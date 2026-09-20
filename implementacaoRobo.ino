@@ -1,12 +1,11 @@
-#include <Ultrasonic.h>;
+#include <Ultrasonic.h>
 
-const int PIN_ENA = 3; // Velocidade Motores Esquerda
-const int PIN_IN1 = 9;  // Direção 1 Motores Esquerda
-const int PIN_IN2 = 8;  // Direção 2 Motores Esquerda
+// Pinos dos motores
+const int PIN_IN1 = 9;   // PWM - Motor esquerdo
+const int PIN_IN2 = 10;  // PWM - Motor esquerdo
 
-const int PIN_ENB = 5;  // Velocidade Motores Direita
-const int PIN_IN3 = 7;  // Direção 1 Motores Direita
-const int PIN_IN4 = 6;  // Direção 2 Motores Direita
+const int PIN_IN3 = 5;   // PWM - Motor direito
+const int PIN_IN4 = 6;   // PWM - Motor direito
 
 // Pino Sensores
 const int SOUND_SENSOR_PIN = 2;
@@ -31,13 +30,14 @@ const int PIN_LED = LED_BUILTIN;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(PIN_ENA, OUTPUT);
+
   pinMode(PIN_IN1, OUTPUT);
   pinMode(PIN_IN2, OUTPUT);
-  pinMode(PIN_ENB, OUTPUT);
   pinMode(PIN_IN3, OUTPUT);
   pinMode(PIN_IN4, OUTPUT);
+
   pinMode(SOUND_SENSOR_PIN, INPUT);
+
   pinMode(PIN_LED, OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(SOUND_SENSOR_PIN), registerClap, FALLING);
@@ -150,52 +150,45 @@ void loop() {
 }
 
 void changeSpeed(int speedA, int speedB) {
-  analogWrite(PIN_ENA, speedA);
-  analogWrite(PIN_ENB, speedB);
+  if (turnRight) {
+    analogWrite(PIN_IN1, 0);
+    analogWrite(PIN_IN2, speedA);
+
+    analogWrite(PIN_IN3, speedB);
+    analogWrite(PIN_IN4, 0);
+  }
+  else {
+    analogWrite(PIN_IN1, speedA);
+    analogWrite(PIN_IN2, 0);
+
+    analogWrite(PIN_IN3, 0);
+    analogWrite(PIN_IN4, speedB);
+  }
+
   currentSpeed = speedA;
 }
 
-void setDirectionWheels(int IN1, int IN2, int IN3, int IN4) {
-  digitalWrite(PIN_IN1, IN1);
-  digitalWrite(PIN_IN2, IN2);
-  digitalWrite(PIN_IN3, IN3);
-  digitalWrite(PIN_IN4, IN4);
-}
-
 void startEngines(int speedPWM) {
-  setDirectionWheels(LOW, HIGH, HIGH, LOW); 
   changeSpeed(speedPWM, speedPWM);
 }
 
 void stopEngines() {
-  // Corta a energia (PWM = 0)
-  changeSpeed(0, 0);
-  
-  //freio do motor colocando os IN em níveis iguais (LOW/LOW)
-  setDirectionWheels(LOW, LOW, LOW, LOW);
+  analogWrite(PIN_IN1, 0);
+  analogWrite(PIN_IN2, 0);
+  analogWrite(PIN_IN3, 0);
+  analogWrite(PIN_IN4, 0);
 }
 
-void changeDirection(bool right){
+void changeDirection(bool right) {
   stopEngines();
-
-  if(right) {
-                    // LOW, HIGH, HIGH, LOW
-    setDirectionWheels(LOW, HIGH, HIGH, LOW);
-    Serial.println("Primeiro");
-  } else {
-                    // HIGH, LOW, LOW, HIGH horario
-    setDirectionWheels(HIGH, LOW, LOW, HIGH);
-    Serial.println("Segundo"); 
-  }
+  turnRight = right;
 
   changeSpeed(101, 101);
-  // setDirectionWheels(HIGH, LOW, LOW, HIGH); 
-  // changeSpeed(150, 150);
 
-  // if(right) {
-  //   setDirectionWheels(HIGH, LOW, LOW, HIGH); // Esquerda p/ frente, Direita p/ trás
-  // } else {
-  //   setDirectionWheels(LOW, HIGH, HIGH, LOW); // Esquerda p/ trás, Direita p/ frente
-  // }
-  // changeSpeed(150, 150);
+  if (right) {
+    Serial.println("Primeiro");
+  }
+  else {
+    Serial.println("Segundo");
+  }
 }
