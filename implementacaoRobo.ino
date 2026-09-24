@@ -95,7 +95,7 @@ void loop() {
         if(controller >= 250) {
           for(int i = controller; i > 0; i -= 5) {
             int safeSpeed = (i <= 0) ? 0 : i;
-            changeSpeed(safeSpeed, safeSpeed);
+            changeSpeed(safeSpeed);
             Serial.print("Aumentando velocidade para: ");
             Serial.println(safeSpeed);
             currentSpeed = safeSpeed;
@@ -105,7 +105,7 @@ void loop() {
         } else {
             for(int i = controller; i <= controller + 51; i += 5) {
             int safeSpeed = (i > 255) ? 255 : i;
-            changeSpeed(safeSpeed, safeSpeed);
+            changeSpeed(safeSpeed);
             Serial.print("Aumentando velocidade para: ");
             Serial.println(safeSpeed);
             currentSpeed = safeSpeed;
@@ -122,8 +122,6 @@ void loop() {
         Serial.print("TurnRight: ");
         Serial.println(turnRight);
         changeDirection(turnRight);
-        // delay(1000);
-        // startEngines(currentSpeed > 150 ? currentSpeed : 150);
         break;
       }
 
@@ -137,8 +135,6 @@ void loop() {
   if (enginesRunning) {
     long currentDistance = ultrasonic.MeasureInCentimeters();
     
-    // delay(10);
-    
     if (currentDistance > 0 && currentDistance <= safeDistanceCm) {
       Serial.print("Objeto encontrado a ");
       changeDirection(turnRight);
@@ -149,46 +145,45 @@ void loop() {
   }
 }
 
-void changeSpeed(int speedA, int speedB) {
-  if (turnRight) {
-    analogWrite(PIN_IN1, 0);
-    analogWrite(PIN_IN2, speedA);
+void setDirectionWheels(int IN1, int IN2, int IN3, int IN4) {
+  digitalWrite(PIN_IN1, IN1);
+  digitalWrite(PIN_IN2, IN2);
+  digitalWrite(PIN_IN3, IN3);
+  digitalWrite(PIN_IN4, IN4);
+}
 
-    analogWrite(PIN_IN3, speedB);
-    analogWrite(PIN_IN4, 0);
-  }
-  else {
-    analogWrite(PIN_IN1, speedA);
-    analogWrite(PIN_IN2, 0);
+void changeSpeed(int speed) {
+  setDirectionWheels(speed, 0, 0, speed);
 
-    analogWrite(PIN_IN3, 0);
-    analogWrite(PIN_IN4, speedB);
-  }
+  // if (right) {
+  //   setDirectionWheels(0, speedA, speedB, 0); // anti-horário
+  // }
+  // else {
+  //   setDirectionWheels(speedA, 0, 0, speedB); // horário
+  // }
 
   currentSpeed = speedA;
 }
 
 void startEngines(int speedPWM) {
-  changeSpeed(speedPWM, speedPWM);
+  setDirectionWheels(speedPWM, 0, 0, speedPWM);
 }
 
 void stopEngines() {
-  analogWrite(PIN_IN1, 0);
-  analogWrite(PIN_IN2, 0);
-  analogWrite(PIN_IN3, 0);
-  analogWrite(PIN_IN4, 0);
+  setDirectionWheels(0, 0, 0, 0);
 }
 
 void changeDirection(bool right) {
   stopEngines();
-  turnRight = right;
-
-  changeSpeed(101, 101);
 
   if (right) {
-    Serial.println("Primeiro");
+    setDirectionWheels(102, 0, 102, 0);
+    delay(1000);
+    startEngines(102);
   }
   else {
-    Serial.println("Segundo");
+    setDirectionWheels(0, 102, 0, 102);
+    delay(1000);
+    startEngines(102);
   }
 }
