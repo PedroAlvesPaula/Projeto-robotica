@@ -1,12 +1,11 @@
-#include <Ultrasonic.h>;
+#include <Ultrasonic.h>
 
-const int PIN_ENA = 3; // Velocidade Motores Esquerda
-const int PIN_IN1 = 9;  // Direção 1 Motores Esquerda
-const int PIN_IN2 = 8;  // Direção 2 Motores Esquerda
+// Pinos dos motores
+const int PIN_IN1 = 9;   // PWM - Motor esquerdo
+const int PIN_IN2 = 10;  // PWM - Motor esquerdo
 
-const int PIN_ENB = 5;  // Velocidade Motores Direita
-const int PIN_IN3 = 7;  // Direção 1 Motores Direita
-const int PIN_IN4 = 6;  // Direção 2 Motores Direita
+const int PIN_IN3 = 5;   // PWM - Motor direito
+const int PIN_IN4 = 6;   // PWM - Motor direito
 
 // Pino Sensores
 const int SOUND_SENSOR_PIN = 2;
@@ -31,13 +30,14 @@ const int PIN_LED = LED_BUILTIN;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(PIN_ENA, OUTPUT);
+
   pinMode(PIN_IN1, OUTPUT);
   pinMode(PIN_IN2, OUTPUT);
-  pinMode(PIN_ENB, OUTPUT);
   pinMode(PIN_IN3, OUTPUT);
   pinMode(PIN_IN4, OUTPUT);
+
   pinMode(SOUND_SENSOR_PIN, INPUT);
+
   pinMode(PIN_LED, OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(SOUND_SENSOR_PIN), registerClap, FALLING);
@@ -95,7 +95,7 @@ void loop() {
         if(controller >= 250) {
           for(int i = controller; i > 0; i -= 5) {
             int safeSpeed = (i <= 0) ? 0 : i;
-            changeSpeed(safeSpeed, safeSpeed);
+            changeSpeed(safeSpeed);
             Serial.print("Aumentando velocidade para: ");
             Serial.println(safeSpeed);
             currentSpeed = safeSpeed;
@@ -105,7 +105,7 @@ void loop() {
         } else {
             for(int i = controller; i <= controller + 51; i += 5) {
             int safeSpeed = (i > 255) ? 255 : i;
-            changeSpeed(safeSpeed, safeSpeed);
+            changeSpeed(safeSpeed);
             Serial.print("Aumentando velocidade para: ");
             Serial.println(safeSpeed);
             currentSpeed = safeSpeed;
@@ -122,8 +122,6 @@ void loop() {
         Serial.print("TurnRight: ");
         Serial.println(turnRight);
         changeDirection(turnRight);
-        // delay(1000);
-        // startEngines(currentSpeed > 150 ? currentSpeed : 150);
         break;
       }
 
@@ -137,8 +135,6 @@ void loop() {
   if (enginesRunning) {
     long currentDistance = ultrasonic.MeasureInCentimeters();
     
-    // delay(10);
-    
     if (currentDistance > 0 && currentDistance <= safeDistanceCm) {
       Serial.print("Objeto encontrado a ");
       changeDirection(turnRight);
@@ -149,12 +145,6 @@ void loop() {
   }
 }
 
-void changeSpeed(int speedA, int speedB) {
-  analogWrite(PIN_ENA, speedA);
-  analogWrite(PIN_ENB, speedB);
-  currentSpeed = speedA;
-}
-
 void setDirectionWheels(int IN1, int IN2, int IN3, int IN4) {
   digitalWrite(PIN_IN1, IN1);
   digitalWrite(PIN_IN2, IN2);
@@ -162,40 +152,38 @@ void setDirectionWheels(int IN1, int IN2, int IN3, int IN4) {
   digitalWrite(PIN_IN4, IN4);
 }
 
+void changeSpeed(int speed) {
+  setDirectionWheels(speed, 0, 0, speed);
+
+  // if (right) {
+  //   setDirectionWheels(0, speedA, speedB, 0); // anti-horário
+  // }
+  // else {
+  //   setDirectionWheels(speedA, 0, 0, speedB); // horário
+  // }
+
+  currentSpeed = speedA;
+}
+
 void startEngines(int speedPWM) {
-  setDirectionWheels(LOW, HIGH, HIGH, LOW); 
-  changeSpeed(speedPWM, speedPWM);
+  setDirectionWheels(speedPWM, 0, 0, speedPWM);
 }
 
 void stopEngines() {
-  // Corta a energia (PWM = 0)
-  changeSpeed(0, 0);
-  
-  //freio do motor colocando os IN em níveis iguais (LOW/LOW)
-  setDirectionWheels(LOW, LOW, LOW, LOW);
+  setDirectionWheels(0, 0, 0, 0);
 }
 
-void changeDirection(bool right){
+void changeDirection(bool right) {
   stopEngines();
 
-  if(right) {
-                    // LOW, HIGH, HIGH, LOW
-    setDirectionWheels(LOW, HIGH, HIGH, LOW);
-    Serial.println("Primeiro");
-  } else {
-                    // HIGH, LOW, LOW, HIGH horario
-    setDirectionWheels(HIGH, LOW, LOW, HIGH);
-    Serial.println("Segundo"); 
+  if (right) {
+    setDirectionWheels(102, 0, 102, 0);
+    delay(1000);
+    startEngines(102);
   }
-
-  changeSpeed(101, 101);
-  // setDirectionWheels(HIGH, LOW, LOW, HIGH); 
-  // changeSpeed(150, 150);
-
-  // if(right) {
-  //   setDirectionWheels(HIGH, LOW, LOW, HIGH); // Esquerda p/ frente, Direita p/ trás
-  // } else {
-  //   setDirectionWheels(LOW, HIGH, HIGH, LOW); // Esquerda p/ trás, Direita p/ frente
-  // }
-  // changeSpeed(150, 150);
+  else {
+    setDirectionWheels(0, 102, 0, 102);
+    delay(1000);
+    startEngines(102);
+  }
 }
