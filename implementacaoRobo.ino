@@ -1,25 +1,25 @@
 #include <Ultrasonic.h>
 
-// Pinos dos motores
-const int PIN_IN1 = 9;   // PWM - Motor esquerdo
-const int PIN_IN2 = 10;  // PWM - Motor esquerdo
+const int PIN_IN1 = 9;   // Motor direito
+const int PIN_IN2 = 10;  // Motor direito
 
-const int PIN_IN3 = 5;   // PWM - Motor direito
-const int PIN_IN4 = 6;   // PWM - Motor direito
+const int PIN_IN3 = 5;   // Motor esquerdo
+const int PIN_IN4 = 6;   // Motor esquerdo
 
-// Pino Sensores
+// Pinos dos Sensores
 const int SOUND_SENSOR_PIN = 2;
 const int PIN_ULTRASSONIC = 4;
 
 // Variáveis de Controle
 bool enginesRunning = false;
-const unsigned long DELAY_DEBOUNCE = 2000;
-const int safeDistanceCm = 80;
+const unsigned long DELAY_DEBOUNCE = 1500;
+const int safeDistanceCm = 40;
 bool turnRight = true;
-unsigned int currentSpeed = 150;
+unsigned int currentSpeed = 150; 
 bool waitingSilence = false;
+bool isDecrementing = false;
 
-// Variaveis alteradas na interrupcao
+// Variáveis alteradas na interrupção (devem ser 'volatile')
 volatile unsigned long lastClapTime = 0;
 volatile unsigned long firstClapTime = 0;
 volatile int countClap = 0;
@@ -37,7 +37,6 @@ void setup() {
   pinMode(PIN_IN4, OUTPUT);
 
   pinMode(SOUND_SENSOR_PIN, INPUT);
-
   pinMode(PIN_LED, OUTPUT);
 
   attachInterrupt(digitalPinToInterrupt(SOUND_SENSOR_PIN), registerClap, FALLING);
@@ -71,57 +70,58 @@ void loop() {
     Serial.println(numberOfClaps);
 
     switch (numberOfClaps) {
-      case 1:{
-        Serial.println("Acao: 1 palma");
+      case 1: {
+        Serial.println("Acao: 1 palma - Liga/Desliga");
         enginesRunning = !enginesRunning;
 
         if (enginesRunning) {
-          Serial.print("Ligando motores speed = .");
-          startEngines(currentSpeed);
+          Serial.print("Ligando motores speed = ");
           Serial.println(currentSpeed);
+          startEngines(currentSpeed);
         } else {
           Serial.println("Parando motores.");
           stopEngines();
         }
-        digitalWrite(PIN_LED, HIGH);
-        delay(100);
-        digitalWrite(PIN_LED, LOW);
         break;
       }
 
-      case 2:{
-        Serial.println("Acao: 2 palmas");
+      case 2: {
+        if (!enginesRunning) break;
+        Serial.println("Acao: 2 palmas - Altera Velocidade");
+        
         int controller = currentSpeed;
-        if(controller >= 250) {
-          for(int i = controller; i > 0; i -= 5) {
-            int safeSpeed = (i <= 0) ? 0 : i;
-            changeSpeed(safeSpeed);
-            Serial.print("Aumentando velocidade para: ");
+        
+        if (isDecrementing) {
+          for (int i = controller; i >= controller - 50; i -= 5) {
+            int safeSpeed = (i < 80) ? 80 : i;
+            startEngines(safeSpeed);
+            Serial.print("Diminuindo velocidade para: ");
             Serial.println(safeSpeed);
             currentSpeed = safeSpeed;
             delay(100);
-            if (safeSpeed == 0) break;
+            if (safeSpeed == 80) break;
           }
+          if (currentSpeed <= 80) isDecrementing = false;
         } else {
-            for(int i = controller; i <= controller + 51; i += 5) {
+          for (int i = controller; i <= controller + 50; i += 5) {
             int safeSpeed = (i > 255) ? 255 : i;
-            changeSpeed(safeSpeed);
+            startEngines(safeSpeed);
             Serial.print("Aumentando velocidade para: ");
             Serial.println(safeSpeed);
             currentSpeed = safeSpeed;
             delay(100);
             if (safeSpeed == 255) break;
           }
+          if (currentSpeed >= 250) isDecrementing = true; // Inverte o ciclo
         }
         break;
       }
 
-      case 3:{
-        Serial.println("Acao: 3 palmas");
+      case 3: {
+        if (!enginesRunning) break;
+        Serial.println("Acao: 3 palmas - Muda Direcao Manualmente");
         turnRight = !turnRight;
-        Serial.print("TurnRight: ");
-        Serial.println(turnRight);
-        changeDirection(turnRight);
+        changeDirection(turnRight, currentSpeed);
         break;
       }
 
@@ -137,32 +137,20 @@ void loop() {
     
     if (currentDistance > 0 && currentDistance <= safeDistanceCm) {
       Serial.print("Objeto encontrado a ");
-      changeDirection(turnRight);
-      Serial.println(" cm de distancia, mudando direcao.");
+      Serial.print(currentDistance);
+      Serial.println(" cm. Mudando direcao automaticamente.");
       
-      delay(500); 
+      turnRight = !turnRight;
+      changeDirection(turnRight, currentSpeed);
     }
   }
 }
 
 void setDirectionWheels(int IN1, int IN2, int IN3, int IN4) {
-  digitalWrite(PIN_IN1, IN1);
-  digitalWrite(PIN_IN2, IN2);
-  digitalWrite(PIN_IN3, IN3);
-  digitalWrite(PIN_IN4, IN4);
-}
-
-void changeSpeed(int speed) {
-  setDirectionWheels(speed, 0, 0, speed);
-
-  // if (right) {
-  //   setDirectionWheels(0, speedA, speedB, 0); // anti-horário
-  // }
-  // else {
-  //   setDirectionWheels(speedA, 0, 0, speedB); // horário
-  // }
-
-  currentSpeed = speedA;
+  analogWrite(PIN_IN1, IN1);
+  analogWrite(PIN_IN2, IN2);
+  analogWrite(PIN_IN3, IN3);
+  analogWrite(PIN_IN4, IN4);
 }
 
 void startEngines(int speedPWM) {
@@ -173,17 +161,21 @@ void stopEngines() {
   setDirectionWheels(0, 0, 0, 0);
 }
 
-void changeDirection(bool right) {
+void changeDirection(bool right, int speed) {
   stopEngines();
+  delay(100);
+
+  int turnSpeed = 180; 
 
   if (right) {
-    setDirectionWheels(102, 0, 102, 0);
-    delay(1000);
-    startEngines(102);
+    setDirectionWheels(0, turnSpeed, 0, turnSpeed);
+  } else {
+    setDirectionWheels(turnSpeed, 0, turnSpeed, 0);
   }
-  else {
-    setDirectionWheels(0, 102, 0, 102);
-    delay(1000);
-    startEngines(102);
-  }
+  
+  delay(800);
+  
+  stopEngines();
+  delay(100);
+  startEngines(speed);
 }
