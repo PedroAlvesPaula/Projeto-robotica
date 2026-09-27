@@ -10,6 +10,11 @@ const int PIN_IN4 = 6;   // Motor esquerdo
 const int SOUND_SENSOR_PIN = 2;
 const int PIN_ULTRASSONIC = 4;
 
+// Pinos do LED RGB
+const int PIN_RGB_R = 11; // Vermelho
+const int PIN_RGB_G = 12; // Verde
+const int PIN_RGB_B = 8;  // Azul
+
 // Variáveis de Controle
 bool enginesRunning = false;
 const unsigned long DELAY_DEBOUNCE = 1500;
@@ -18,6 +23,7 @@ bool turnRight = true;
 unsigned int currentSpeed = 150; 
 bool waitingSilence = false;
 bool isDecrementing = false;
+volatile bool ignoreClap = false;
 
 // Variáveis alteradas na interrupção (devem ser 'volatile')
 volatile unsigned long lastClapTime = 0;
@@ -39,12 +45,19 @@ void setup() {
   pinMode(SOUND_SENSOR_PIN, INPUT);
   pinMode(PIN_LED, OUTPUT);
 
+  // Configuração dos pinos do LED RGB
+  pinMode(PIN_RGB_R, OUTPUT);
+  pinMode(PIN_RGB_G, OUTPUT);
+  pinMode(PIN_RGB_B, OUTPUT);
+
   attachInterrupt(digitalPinToInterrupt(SOUND_SENSOR_PIN), registerClap, FALLING);
 
   stopEngines();
 }
 
 void registerClap() {
+  if (ignoreClap) return; // Ignora palmas se estiver virando
+
   unsigned long currentTime = millis();
 
   if ((currentTime - lastClapTime) > 150) { 
@@ -54,6 +67,12 @@ void registerClap() {
     countClap++; 
     lastClapTime = currentTime;
   }
+}
+
+void setLedColor(bool red, bool green, bool blue) {
+  digitalWrite(PIN_RGB_R, red ? HIGH : LOW);
+  digitalWrite(PIN_RGB_G, green ? HIGH : LOW);
+  digitalWrite(PIN_RGB_B, blue ? HIGH : LOW);
 }
 
 void loop() {
@@ -77,9 +96,11 @@ void loop() {
         if (enginesRunning) {
           Serial.print("Ligando motores speed = ");
           Serial.println(currentSpeed);
+          setLedColor(false, true, false); // Verde
           startEngines(currentSpeed);
         } else {
           Serial.println("Parando motores.");
+          setLedColor(false, false, false); // Desligado
           stopEngines();
         }
         break;
@@ -92,6 +113,7 @@ void loop() {
         int controller = currentSpeed;
         
         if (isDecrementing) {
+          setLedColor(true, false, false); // Vermelho
           for (int i = controller; i >= controller - 50; i -= 5) {
             int safeSpeed = (i < 80) ? 80 : i;
             startEngines(safeSpeed);
@@ -99,10 +121,13 @@ void loop() {
             Serial.println(safeSpeed);
             currentSpeed = safeSpeed;
             delay(100);
+            setLedColor(true, false, false); // Vermelho
             if (safeSpeed == 80) break;
           }
           if (currentSpeed <= 80) isDecrementing = false;
+          setLedColor(false, true, false); // Verde
         } else {
+          setLedColor(false, true, false); // Verde
           for (int i = controller; i <= controller + 50; i += 5) {
             int safeSpeed = (i > 255) ? 255 : i;
             startEngines(safeSpeed);
@@ -113,6 +138,7 @@ void loop() {
             if (safeSpeed == 255) break;
           }
           if (currentSpeed >= 250) isDecrementing = true; // Inverte o ciclo
+          setLedColor(false, true, false); // Verde
         }
         break;
       }
@@ -139,9 +165,24 @@ void loop() {
       Serial.print("Objeto encontrado a ");
       Serial.print(currentDistance);
       Serial.println(" cm. Mudando direcao automaticamente.");
-      
+      setLedColor(true, true, false); // Amarelo
+      ignoreClap = true; // Ignora palmas enquanto vira
       turnRight = !turnRight;
-      changeDirection(turnRight, currentSpeed);
+      // changeDirection(turnRight, currentSpeed);
+
+      // Gira enquanto houver obstáculo à frente
+      spinRobot(turnRight);
+      while(currentDistance > 0 && currentDistance <= safeDistanceCm) {
+        delay(100);
+        currentDistance = ultrasonic.MeasureInCentimeters();
+      }
+
+      // Espera um pouco antes de retomar a direção original
+      stopEngines();
+      delay(100);
+      ignoreClap = false; // Permite palmas novamente
+      setLedColor(false, true, false); // Verde
+      startEngines(currentSpeed);
     }
   }
 }
@@ -162,6 +203,7 @@ void stopEngines() {
 }
 
 void changeDirection(bool right, int speed) {
+  setLedColor(true, true, false); // Amarelo
   stopEngines();
   delay(100);
 
@@ -177,5 +219,17 @@ void changeDirection(bool right, int speed) {
   
   stopEngines();
   delay(100);
+
+  setLedColor(false, true, false); // Verde
   startEngines(speed);
+}
+
+void spinRobot(bool right) {
+  int turnSpeed = 150; // Precisa validar esse valor, a IA disse que era bom
+
+  if (right) {
+    setDirectionWheels(0, turnSpeed, 0, turnSpeed); // Direita
+  } else {
+    setDirectionWheels(turnSpeed, 0, turnSpeed, 0); // Esquerda
+  }
 }
